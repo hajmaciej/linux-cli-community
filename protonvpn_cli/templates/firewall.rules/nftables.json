@@ -1,0 +1,45 @@
+{
+    "name": "nftables",
+    "restore": "nft -f ${BACKUP_FILE}",
+    "save": "nft list ruleset",
+    "verify": "asd",
+    "commands": [
+        "nft flush ruleset",
+        "nft add table inet killswitch",
+        "nft add chain inet killswitch INPUT '{ type filter hook input priority 0; policy drop; }'",
+        "nft add chain inet killswitch FORWARD '{ type filter hook forward priority 0; policy drop; }'",
+        "nft add chain inet killswitch OUTPUT '{ type filter hook output priority 0; policy drop; }'",
+        "nft add rule inet killswitch INPUT 'iifname \"lo\" counter accept'",
+        "nft add rule inet killswitch INPUT 'iifname ${DEVICE} ip saddr 255.255.255.255 counter accept'",
+        "nft add rule inet killswitch INPUT 'ct state related,established accept'",
+        "nft add rule inet killswitch INPUT 'counter log prefix \"NFT drop in: \" drop'",
+        "nft add rule inet killswitch FORWARD 'counter log prefix \"NFT drop fwd: \" drop'",
+        "nft add rule inet killswitch OUTPUT 'oifname \"lo\" counter accept'",
+        "nft add rule inet killswitch OUTPUT 'oifname ${DEVICE} ip daddr ${NTP_SERVERS} udp dport 123 counter accept'",
+        "nft add rule inet killswitch OUTPUT 'oifname ${DEVICE} ip daddr ${VPN_SERVERS} counter accept'",
+        "nft add rule inet killswitch OUTPUT 'oifname ${VPN_DEVICE} counter accept'",
+        "nft add rule inet killswitch OUTPUT 'oifname ${DEVICE} ip daddr 255.255.255.255 counter accept'",
+        "nft add rule inet killswitch OUTPUT 'ct state related,established accept'",
+        "nft add rule inet killswitch OUTPUT 'counter log prefix \"NFT drop out: \" drop'"
+    ],
+    "commands-lan": [
+        "nft add rule inet killswitch INPUT iifname ${INET_DEV} tcp dport ssh counter accept",
+        "nft add rule inet killswitch OUTPUT oifname ${INET_DEV} ip daddr ${LAN_CLIENTS} counter accept"
+    ],
+    "commands-default": [
+        "nft flush ruleset",
+        "nft add table inet filter",
+        "nft add chain inet filter input { type filter hook input priority 0 ; policy drop ; }",
+        "nft add chain inet filter forward { type filter hook forward priority 0 ; policy drop ; }",
+        "nft add chain inet filter output { type filter hook output priority 0 ; policy accept ; }",
+        "nft add rule inet filter input ct state established,related accept",
+        "nft add rule inet filter input iifname \"lo\" accept",
+        "nft add rule inet filter input tcp dport ssh accept",
+        "nft add rule inet filter input counter drop",
+        "nft add rule inet filter forward ct state established,related accept",
+        "nft add rule inet filter forward counter drop"
+    ]
+}
+
+
+

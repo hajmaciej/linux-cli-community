@@ -1,0 +1,40 @@
+{
+    "name": "iptables",
+    "restore": "iptables-restore < ${BACKUP_FILE}",
+    "save": "iptables-save",
+    "verify": "asd",
+    "commands": [
+        "iptables -F",
+        "iptables -P INPUT DROP",
+        "iptables -P OUTPUT DROP",
+        "iptables -P FORWARD DROP",
+        "iptables -A OUTPUT -o lo -j ACCEPT",
+        "iptables -A INPUT -i lo -j ACCEPT",
+        "iptables -A OUTPUT -o ${DEVICE} -j ACCEPT",
+        "iptables -A INPUT -i ${DEVICE} -j ACCEPT",
+        "iptables -A OUTPUT -o ${DEVICE} -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        "iptables -A INPUT -i ${DEVICE} -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        "iptables -A OUTPUT -p ${PROTO} -m ${PROTO} --dport ${PORT} -j ACCEPT",
+        "iptables -A INPUT -p ${PROTO} -m ${PROTO} --sport ${PORT} -j ACCEPT"
+    ],
+    "commands-lan": [
+        "iptables -A OUTPUT -o ${DEFAULT_NIC} -d ${LOCAL_NETWORK} -j ACCEPT",
+        "iptables -A INPUT -i ${DEFAULT_NIC} -s ${LOCAL_NETWORK} -j ACCEPT"
+    ],
+    "commads-default": [
+        "*filter",
+        "iptables -P INPUT ACCEPT",
+        "iptables -P OUTPUT ACCEPT",
+        "iptables -P FORWARD ACCEPT"
+    ],
+    "commads-default-new": [
+        "iptables -F",
+        "iptables -P INPUT DROP",
+        "iptables -P FORWARD DROP",
+        "iptables -P OUTPUT ACCEPT",
+        "iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT",
+        "iptables -A INPUT -i lo -j ACCEPT",
+        "iptables -A INPUT -p tcp --dport ssh -j ACCEPT",
+        "iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT"
+    ]
+}

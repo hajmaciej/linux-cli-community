@@ -9,8 +9,10 @@ import re
 import configparser
 import datetime
 import zlib
+import json
 # External Libraries
 from dialog import Dialog
+from string import Template
 # protonvpn-cli Functions
 from .logger import logger
 from .utils import (
@@ -19,7 +21,8 @@ from .utils import (
     set_config_value, get_ip_info, get_country_name,
     get_fastest_server, check_update, get_default_nic,
     get_transferred_data, create_openvpn_config,
-    is_ipv6_disabled, patch_passfile
+    is_ipv6_disabled, patch_passfile, check_firewall_presence,
+    check_tuntap_device_presence
 )
 # Constants
 from .constants import (
@@ -158,27 +161,27 @@ def random_c(protocol=None):
 def fastest(protocol=None):
     """Connect to the fastest server available."""
 
-    logger.debug("Starting fastest connect")
+#     logger.debug("Starting fastest connect")
+# 
+#     if not protocol:
+#         protocol = get_config_value("USER", "default_protocol")
+# 
+#     disconnect(passed=True)
+#     pull_server_data(force=True)
+# 
+#     servers = get_servers()
+# 
+#     # ProtonVPN Features: 1: SECURE-CORE, 2: TOR, 4: P2P
+#     excluded_features = [1, 2]
+# 
+#     # Filter out excluded features
+#     server_pool = []
+#     for server in servers:
+#         if server["Features"] not in excluded_features:
+#             server_pool.append(server)
 
-    if not protocol:
-        protocol = get_config_value("USER", "default_protocol")
-
-    disconnect(passed=True)
-    pull_server_data(force=True)
-
-    servers = get_servers()
-
-    # ProtonVPN Features: 1: SECURE-CORE, 2: TOR, 4: P2P
-    excluded_features = [1, 2]
-
-    # Filter out excluded features
-    server_pool = []
-    for server in servers:
-        if server["Features"] not in excluded_features:
-            server_pool.append(server)
-
-    fastest_server = get_fastest_server(server_pool)
-    openvpn_connect(fastest_server, protocol)
+#     fastest_server = get_fastest_server(server_pool)
+    openvpn_connect("146.70.161.179", "default")
 
 
 def country_f(country_code, protocol=None):
@@ -455,105 +458,107 @@ def status():
 def openvpn_connect(servername, protocol):
     """Connect to VPN Server."""
 
-    logger.debug("Initiating OpenVPN connection")
-    logger.debug(
-        "Connecting to {0} via {1}".format(servername, protocol.upper())
-    )
+    # logger.debug("Initiating OpenVPN connection")
+    # logger.debug(
+    #     "Connecting to {0} via {1}".format(servername, protocol.upper())
+    # )
 
-    port = {"udp": 1194, "tcp": 443}
+    # port = {"udp": 1194, "tcp": 443}
 
-    servers = get_servers()
-    subservers = get_server_value(servername, "Servers", servers)
-    ip_list = [subserver["EntryIP"] for subserver in subservers]
+    # servers = get_servers()
+    # subservers = get_server_value(servername, "Servers", servers)
+    # ip_list = [subserver["EntryIP"] for subserver in subservers]
 
-    # Ports gets casted to a list instead of just a single port to make it iterable
-    create_openvpn_config(serverlist=ip_list, protocol=protocol, ports=[port[protocol.lower()]])
+    # # Ports gets casted to a list instead of just a single port to make it iterable
+    # create_openvpn_config(serverlist=ip_list, protocol=protocol, ports=[port[protocol.lower()]])
 
-    disconnect(passed=True)
+    # disconnect(passed=True)
 
-    old_ip, _ = get_ip_info()
+    # old_ip, _ = get_ip_info()
 
-    print("Connecting to {0} via {1}...".format(servername, protocol.upper()))
+    # print("Connecting to {0} via {1}...".format(servername, protocol.upper()))
 
-    patch_passfile(PASSFILE)
+    # patch_passfile(PASSFILE)
 
-    with open(os.path.join(CONFIG_DIR, "ovpn.log"), "w+") as f:
-        subprocess.Popen(
-            [
-                "openvpn",
-                "--config", OVPN_FILE,
-                "--auth-user-pass", PASSFILE,
-                "--dev", "proton0",
-                "--dev-type", "tun"
-            ],
-            stdout=f, stderr=f
-        )
+    # with open(os.path.join(CONFIG_DIR, "ovpn.log"), "w+") as f:
+    #     subprocess.Popen(
+    #         [
+    #             "openvpn",
+    #             "--config", OVPN_FILE,
+    #             "--auth-user-pass", PASSFILE,
+    #             "--dev", "proton0",
+    #             "--dev-type", "tun"
+    #         ],
+    #         stdout=f, stderr=f
+    #     )
 
-    logger.debug("OpenVPN process started")
-    time_start = time.time()
+    # logger.debug("OpenVPN process started")
+    # time_start = time.time()
 
-    with open(os.path.join(CONFIG_DIR, "ovpn.log"), "r") as f:
-        while True:
-            content = f.read()
-            f.seek(0)
-            # If connection successful
-            if "Initialization Sequence Completed" in content:
-                # Enable DNS Leak Protection
-                dns_dhcp_regex = re.compile(
-                    r"(dhcp-option DNS )"
-                    r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
-                )
+    # with open(os.path.join(CONFIG_DIR, "ovpn.log"), "r") as f:
+    #     while True:
+    #         content = f.read()
+    #         f.seek(0)
+    #         # If connection successful
+    #         if "Initialization Sequence Completed" in content:
+    #             # Enable DNS Leak Protection
+    #             dns_dhcp_regex = re.compile(
+    #                 r"(dhcp-option DNS )"
+    #                 r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+    #             )
 
-                dns_dhcp = dns_dhcp_regex.search(content)
-                if dns_dhcp:
-                    dns_server = dns_dhcp.group(2)
-                    set_config_value("metadata", "dns_server", dns_server)
-                    manage_dns("leak_protection", dns_server)
-                else:
-                    print(
-                        "[!] Could not enable DNS Leak Protection!\n"
-                        "[!] Make sure you are protected!"
-                    )
-                manage_ipv6("disable")
-                manage_killswitch("enable", proto=protocol.lower(),
-                                  port=port[protocol.lower()])
-                new_ip, _ = get_ip_info()
-                if old_ip == new_ip:
-                    logger.debug("Failed to connect. IP didn't change")
-                    print("[!] Connection failed. Reverting all changes...")
-                    disconnect(passed=True)
-                print("Connected!")
-                logger.debug("Connection successful")
-                break
-            # If Authentication failed
-            elif "AUTH_FAILED" in content:
-                print(
-                    "[!] Authentication failed. \n"
-                    "[!] Please make sure that your "
-                    "Username and Password is correct."
-                )
-                logger.debug("Authentication failure")
-                sys.exit(1)
-            # Stop after 45s
-            elif time.time() - time_start >= 45:
-                print("Connection failed.")
-                logger.debug("Connection failed after 45 Seconds")
-                sys.exit(1)
-            time.sleep(0.1)
+    #             dns_dhcp = dns_dhcp_regex.search(content)
+    #             if dns_dhcp:
+    #                 dns_server = dns_dhcp.group(2)
+    #                 set_config_value("metadata", "dns_server", dns_server)
+    #                 manage_dns("leak_protection", dns_server)
+    #             else:
+    #                 print(
+    #                     "[!] Could not enable DNS Leak Protection!\n"
+    #                     "[!] Make sure you are protected!"
+    #                 )
+    #             manage_ipv6("disable")
+    #             manage_killswitch("enable", proto=protocol.lower(),
+    #                               port=port[protocol.lower()])
+    #             new_ip, _ = get_ip_info()
+    #             if old_ip == new_ip:
+    #                 logger.debug("Failed to connect. IP didn't change")
+    #                 print("[!] Connection failed. Reverting all changes...")
+    #                 disconnect(passed=True)
+    #             print("Connected!")
+    #             logger.debug("Connection successful")
+    #             break
+    #         # If Authentication failed
+    #         elif "AUTH_FAILED" in content:
+    #             print(
+    #                 "[!] Authentication failed. \n"
+    #                 "[!] Please make sure that your "
+    #                 "Username and Password is correct."
+    #             )
+    #             logger.debug("Authentication failure")
+    #             sys.exit(1)
+    #         # Stop after 45s
+    #         elif time.time() - time_start >= 45:
+    #             print("Connection failed.")
+    #             logger.debug("Connection failed after 45 Seconds")
+    #             sys.exit(1)
+    #         time.sleep(0.1)
 
-    # Write connection info into configuration file
-    logger.debug("Writing connection info to file")
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
+    # # Write connection info into configuration file
+    # logger.debug("Writing connection info to file")
+    # config = configparser.ConfigParser()
+    # config.read(CONFIG_FILE)
 
-    config["metadata"]["connected_server"] = servername
-    config["metadata"]["connected_proto"] = protocol
-    config["metadata"]["connected_time"] = str(int(time.time()))
+    # config["metadata"]["connected_server"] = servername
+    # config["metadata"]["connected_proto"] = protocol
+    # config["metadata"]["connected_time"] = str(int(time.time()))
 
-    with open(CONFIG_FILE, "w+") as f:
-        config.write(f)
+    # with open(CONFIG_FILE, "w+") as f:
+    #     config.write(f)
 
-    check_update()
+    # check_update()
+    manage_killswitch("enable", proto=protocol.lower(),
+                                port="666")
 
 
 def manage_dns(mode, dns_server=False):
@@ -779,23 +784,14 @@ def manage_ipv6(mode):
                         "Mode must be 'disable' or 'restore'")
 
 
-def manage_killswitch(mode, proto=None, port=None):
-    """
-    Disable and enable the VPN Kill Switch.
-
-    The Kill Switch creates IPTables rules that only allow connections to go
-    through the OpenVPN device. If the OpenVPN process stops for some unknown
-    reason this will completely block access to the internet.
-    """
-
+def manage_killswitch_original(mode, proto=None, port=None):
     backupfile = os.path.join(CONFIG_DIR, "iptables.backup")
 
     if mode == "restore":
         logger.debug("Restoring iptables")
         if os.path.isfile(backupfile):
             logger.debug("Restoring IPTables rules")
-            subprocess.run("iptables-restore < {0}".format(backupfile),
-                           shell=True, stdout=subprocess.PIPE)
+            subprocess.run("iptables-restore < {0}".format(backupfile), shell=True, stdout=subprocess.PIPE)
             logger.debug("iptables restored")
             os.remove(backupfile)
             logger.debug("iptables.backup removed")
@@ -824,9 +820,8 @@ def manage_killswitch(mode, proto=None, port=None):
             device = device.group(2)
 
         # Backing up IPTables rules
-        logger.debug("Backing up iptables rules")
-        iptables_rules = subprocess.run(["iptables-save"],
-                                        stdout=subprocess.PIPE)
+        logger.debug("Saving iptables rules")
+        iptables_rules = subprocess.run(["iptables-save"], stdout=subprocess.PIPE)
 
         if "COMMIT" in iptables_rules.stdout.decode():
             with open(backupfile, "wb") as f:
@@ -858,10 +853,7 @@ def manage_killswitch(mode, proto=None, port=None):
         if int(get_config_value("USER", "killswitch")) == 2:
             # Getting local network information
             default_nic = get_default_nic()
-            local_network = subprocess.run(
-                "ip addr show {0} | grep inet".format(default_nic),
-                stdout=subprocess.PIPE, shell=True
-            )
+            local_network = subprocess.run( "ip addr show {0} | grep inet".format(default_nic), stdout=subprocess.PIPE, shell=True)
             local_network = local_network.stdout.decode().strip().split()[1]
 
             exclude_lan_commands = [
@@ -876,3 +868,123 @@ def manage_killswitch(mode, proto=None, port=None):
             command = command.split()
             subprocess.run(command)
         logger.debug("Kill Switch enabled")
+
+
+def manage_killswitch(mode, proto=None, port=None):
+    """
+    Disable and enable the VPN Kill Switch.
+
+    This function should manage the firewall rules from high level. 
+    Should determine which firewall is present in the system, and then, execute
+    correct function that conduct firewall logic.
+    The Kill Switch creates firewall rules that only allow connections to go
+    through the OpenVPN device. If the OpenVPN process stops for some unknown
+    reason this will completely block access to the internet.
+    """
+
+    # manage_killswitch(mode, proto, port)
+    #   check_firewall_presence()
+    #       If there's no firewall then advice to have one
+    #   set_firewall_rules()
+    #       Check whether rules are available for firewall found in the system
+    #       MODE = restore
+    #          Restore backup of firewall configuration from some prevoius run
+    #       READ CONFIG
+    #          Stop if Kill Switch is disabled
+    #       MODE = enable
+    #           MODE = restore
+    #               If backup of firewall rules exists, restore it
+    #           Check whether TUN/TAP device is present
+    #           Create backup of firewall rules
+    #           Check whether rules are complete. 
+    #               COMMIT is passed at the end of iptables set of rules
+    #               How to do it for nftables?
+    #           TODO Read firewall rules from file present it protonvpn_cli/templates/firewall.rules/*
+    #           Check in config file whether LAN traffic is accepted (value 2)
+    #           Execute firewall commands
+
+    # Check what firewall is present in the system
+    firewall_file = check_firewall_presence()
+
+    if not firewall_file:
+        firewall_file = "nftables.json"
+
+    # Load configuration for firewall that is present in the system
+    with open(os.getcwd() + '/' + 'protonvpn_cli/templates/firewall.rules/' + firewall_file, 'r') as f:
+        firewall = json.load(f)
+
+
+    if mode == 'restore':
+        logger.debug(f"Restoring {firewall['name']} firewall rules.")
+        if os.path.isfile(backupfile):
+            logger.debug(f"Restoring {firewall['name']} firewall rules.")
+            subprocess.run(firewall['restore'], stdout=subprocess.PIPE, shell=True)
+            logger.debug(f"{firewall['name']} firewall rules restored.")
+            os.remove(backupfile)
+            logger.debug(f"{firewall['name']}.backup file removed.")
+        else:
+            logger.debug("No Backupfile found.")
+
+    logger.debug(firewall)
+    # Stop if Kill Switch is disabled
+    if not int(get_config_value("USER", "killswitch")):
+        return
+
+    if mode == "enable":
+        backupfile = os.path.join(CONFIG_DIR, firewall['name'] + ".backup")
+        if os.path.isfile(backupfile):
+            logger.debug("Kill Switch backup exists")
+            manage_killswitch('restore')
+
+        variables = {
+            'BACKUP_FILE': backupfile,
+            'DEVICE': check_tuntap_device_presence(),
+            'PROTO': proto,
+            'PORT': port
+        }
+        
+        #   Read value from config file, 2 means that it KS 2nd mode, which accepts LAN traffic
+        if int(get_config_value("USER", "killswitch")) == 2:
+            # Getting local network information
+            variables['DEFAULT_NIC'] = get_default_nic()
+            local_network = subprocess.run("ip addr show {0} | grep inet".format(default_nic), stdout=subprocess.PIPE, shell=True)
+            variables['LOCAL_NETWORK'] = local_network.stdout.decode().strip().split()[1]
+
+            exclude_lan_commands = firewall['commands-lan']
+
+            for lan_command in exclude_lan_commands:
+                firewall_commands.append(lan_command)
+
+        # Update JSON config
+        for key, value in firewall_commands.items():
+            if isinstance(value, str):
+                template = Template(value)
+                firewall_commands[key] = template.substitute(variables)
+            elif isinstance(value, list):
+                firewall_commands[key] = [Template(item).substitute(variables) for item in value]
+
+        logger.debug(firewall_commands)
+        exit()
+        # Backing up firewall rules
+        logger.debug(f"Saving {firewall['name']} firewall rules.")
+        firewall_rules = subprocess.run(firewall['save'], stdout=subprocess.PIPE, shell=True)
+
+        # Check whether rules are complete. COMMIT is passed at the end of iptables set of rules
+        """
+            def verify_firewall_rules(firewall):
+                if "COMMIT" in iptables_rules.stdout.decode():
+                    with open(backupfile, "wb") as f:
+                        f.write(iptables_rules.stdout)
+                else:
+                    with open(backupfile, "w") as f:
+                        firewall-commands-default
+        """
+
+
+    #   Execute firewall commands
+    for command in firewall_commands:
+        command = command.split()
+        subprocess.run(command)
+
+    logger.debug("Kill Switch enabled")
+

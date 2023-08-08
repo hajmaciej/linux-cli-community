@@ -539,3 +539,36 @@ def patch_passfile(passfile):
         with open(passfile, "w") as f:
             f.write("{0}+{1}\n{2}".format(ovpn_username.strip(), CLIENT_SUFFIX, ovpn_password))
         os.chmod(passfile, 0o600)
+
+
+def check_firewall_presence():
+    """
+        Checks which firewalls are supported and searches for one in the system
+    """
+
+    # Check supported firewalls
+    firewalls = [f for f in os.listdir(os.getcwd() + '/' + 'protonvpn_cli/templates/firewall.rules')]
+    logger.debug(f"Supported firewalls are: {firewalls}.")
+    
+    result = subprocess.run(["ps", "aux"], capture_output=True, text=True, check=True)
+    for firewall in firewalls:
+        if firewall in result.stdout:
+            logger.debug(f"Found {firewall} firewall running in your system.")
+            return firewall
+
+    logger.debug(f"Check your firewall settings. Currently supported are: {firewalls}")
+    return None
+
+
+def check_tuntap_device_presence():
+    """
+        Check whether TUN/TAP device is present
+    """
+    with open(os.path.join(CONFIG_DIR, "ovpn.log"), "r") as f:
+        content = f.read()
+        device = re.search(r"(TUN\/TAP device) (.+) opened", content)
+        if not device:
+            print("[!] Kill Switch activation failed."
+                    "Device couldn't be determined.")
+            logger.debug("Kill Switch activation failed. No device in logfile")
+        return device.group(2)

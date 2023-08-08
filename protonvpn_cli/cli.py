@@ -100,8 +100,8 @@ def cli():
     if args.get("init"):
         init_cli()
     elif args.get("c") or args.get("connect"):
-        check_root()
-        check_init()
+        # check_root()
+        # check_init()
 
         # Wait until a connection to the ProtonVPN API can be made
         # As this is mainly for automatically connecting on boot, it only
